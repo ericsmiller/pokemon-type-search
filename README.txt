@@ -1,0 +1,1 @@
+This site can be reached at ericsmiller.github.io/pokemon-type-search/
