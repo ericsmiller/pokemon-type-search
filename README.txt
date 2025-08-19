@@ -1,1 +1,1 @@
-This site can be reached at ericsmiller.github.io/pokemon-type-search/
+This site can be reached at https://ericsmiller.github.io/pokemon-type-search/
