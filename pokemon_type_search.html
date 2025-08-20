@@ -10,13 +10,20 @@
     .pokemon { margin: 5px 0; }
   </style>
 </head>
+
 <body>
   <h1>Pokémon Type Finder</h1>
-
+    <nav>
+        <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="pokemon_type_search.html">Pokemon Type Search</a></li>
+            <li><a href="project.html">Team Total</a></li>
+        </ul>
+</nav>
   <!-- Region Selector -->
   <label for="region">Region:</label>
   <select id="region">
-    <option value="kanto">Kanto</option>
+    <!-- <option value="kanto">Kanto</option>
     <option value="johto">Johto</option>
     <option value="hoenn">Hoenn</option>
     <option value="sinnoh">Sinnoh</option>
@@ -24,13 +31,14 @@
     <option value="kalos">Kalos</option>
     <option value="alola">Alola</option>
     <option value="galar">Galar</option>
-    <option value="hisui">Hisui</option>
+    <option value="hisui">Hisui</option> -->
     <option value="paldea">Paldea</option>
   </select>
 
   <!-- Type Selector -->
   <label for="type">Type:</label>
   <select id="type">
+    <option value="any">Any</option>
     <option value="normal">Normal</option>
     <option value="fire">Fire</option>
     <option value="water">Water</option>
