@@ -1,19 +1,233 @@
-<!DOCTYPE html> 
-<html> 
-    <head>
-    <meta charset="UTF-8">
-    <title>Nebulocke Guide</title>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        select, button { margin: 5px; padding: 5px; }
-        .results { margin-top: 20px; }
-        .pokemon { margin: 5px 0; }
-    </style>
-    <nav>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Team BST + Autocomplete (Paldea)</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding:20px; max-width:900px; }
+    .poke-input { width:250px; padding:6px; margin:6px 6px 0 0; display:inline-block; }
+    .suggestions { position:relative; }
+    .suggestions-list {
+      position: absolute;
+      background: white;
+      border: 1px solid #ccc;
+      max-height: 200px;
+      overflow: auto;
+      width: 250px;
+      z-index: 1000;
+    }
+    .suggestions-list div { padding:6px; cursor:pointer; }
+    .suggestions-list div:hover { background:#f0f0f0; }
+    #status { margin:8px 0; color:#333; }
+    pre { background:#ffffff; padding:10px; border-radius:6px; white-space:pre-wrap; }
+  </style>
+  <nav>
         <ul>
             <li><a href="index.html">Home</a></li>
             <li><a href="pokemon_type_search.html">Pokemon Type Search</a></li>
             <li><a href="project.html">Team Total</a></li>
         </ul>
-    </head>
+    </nav>
+</head>
+<body>
+  <h1>Team BST Calculator</h1>
+
+
+  <div id="inputs">
+    <div class="suggestions"><input class="poke-input" id="poke1" placeholder="Pokémon 1"></div>
+    <div class="suggestions"><input class="poke-input" id="poke2" placeholder="Pokémon 2"></div>
+    <div class="suggestions"><input class="poke-input" id="poke3" placeholder="Pokémon 3"></div>
+    <div class="suggestions"><input class="poke-input" id="poke4" placeholder="Pokémon 4"></div>
+    <div class="suggestions"><input class="poke-input" id="poke5" placeholder="Pokémon 5"></div>
+    <div class="suggestions"><input class="poke-input" id="poke6" placeholder="Pokémon 6"></div>
+  </div>
+
+  <div style="margin-top:12px;">
+    <button id="calcBtn">Calculate Team Stats</button>
+  </div>
+
+  <h2>Results</h2>
+  <pre id="results">No results yet.</pre>
+
+<script>
+/* --------- Configuration: try these JSON paths (edit if needed) --------- */
+const JSON_PATHS = [
+  "all_pokemon_data.json"
+];
+
+let pokedexData = []; // array of pokemon objects (loaded from JSON)
+let names = []; // lowercased names for quick search
+
+async function tryLoadJson() {
+  const status = document.getElementById('status');
+  for (const path of JSON_PATHS) {
+    try {
+      console.log("Trying", path);
+      const res = await fetch(path);
+      if (!res.ok) {
+        console.warn("Fetch failed:", path, res.status);
+        continue;
+      }
+      let data = await res.json();
+      // Normalize a few shapes into array
+      if (!Array.isArray(data)) {
+        if (Array.isArray(data.pokemon)) data = data.pokemon;
+        else if (Array.isArray(data.pokemon_entries)) {
+          // minimal objects with name if user pointed to raw pokedex endpoint
+          data = data.pokemon_entries.map(e => ({ name: e.pokemon_species.name }));
+        } else data = Object.values(data);
+      }
+      pokedexData = data;
+      names = pokedexData.map(p => (p.name || "").toString().toLowerCase());
+      console.log("Loaded pokedex sample:", pokedexData[0]);
+      setupAutocomplete();
+      return; // success
+    } catch(err) {
+      console.error("Error fetching", path, err);
+    }
+  }
+  status.textContent = "Status: failed to load JSON — check console and file path(s).";
+  alert("Failed to load paldea.json. Make sure file path is correct and that you're using a local server (not file://).");
+}
+
+/* ---------- Autocomplete UI (custom, reliable) ---------- */
+function setupAutocomplete() {
+  const inputs = Array.from(document.querySelectorAll('.poke-input'));
+  inputs.forEach(inp => {
+    const wrapper = inp.parentElement;
+    // create suggestion container
+    let box = wrapper.querySelector('.suggestions-list');
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'suggestions-list';
+      box.style.display = 'none';
+      wrapper.appendChild(box);
+    }
+    inp.addEventListener('input', e => {
+      const q = e.target.value.trim().toLowerCase();
+      if (!q) { box.style.display = 'none'; return; }
+      // prefer startsWith, then includes (fuzzy)
+      const matches = pokedexData
+        .map(p => p.name || "")
+        .filter(n => n && n.toLowerCase().startsWith(q))
+        .slice(0,10);
+      if (matches.length === 0) {
+        // fallback to includes
+        matches.push(...pokedexData
+          .map(p => p.name || "")
+          .filter(n => n && n.toLowerCase().includes(q) && !n.toLowerCase().startsWith(q))
+          .slice(0,10));
+      }
+      renderSuggestions(box, matches, inp);
+    });
+
+    // hide on blur (with slight delay so click registers)
+    inp.addEventListener('blur', () => setTimeout(()=>{ box.style.display='none'; }, 150));
+    // show suggestions if input already has value
+    inp.addEventListener('focus', e => {
+      const q = e.target.value.trim().toLowerCase();
+      if (q) inp.dispatchEvent(new Event('input'));
+    });
+  });
+}
+
+function renderSuggestions(box, matches, inputEl) {
+  box.innerHTML = "";
+  if (!matches.length) { box.style.display='none'; return; }
+  matches.forEach(m => {
+    const row = document.createElement('div');
+    row.textContent = m;
+    row.addEventListener('click', () => {
+      inputEl.value = m;
+      box.style.display = 'none';
+      inputEl.focus();
+    });
+    box.appendChild(row);
+  });
+  box.style.display = 'block';
+}
+
+/* ---------- Lookup + stats extraction ---------- */
+function findPokemonByName(name) {
+  if (!name) return null;
+  const n = name.trim().toLowerCase();
+  // exact
+  let idx = names.indexOf(n);
+  if (idx !== -1) return pokedexData[idx];
+  // startsWith
+  idx = names.findIndex(x => x.startsWith(n));
+  if (idx !== -1) return pokedexData[idx];
+  // includes
+  idx = names.findIndex(x => x.includes(n));
+  if (idx !== -1) return pokedexData[idx];
+  // base name strip form suffix
+  idx = names.findIndex(x => x.split('-')[0] === n);
+  if (idx !== -1) return pokedexData[idx];
+  return null;
+}
+
+function extractStats(obj) {
+  if (!obj) return null;
+  let src = null;
+  if (obj.stats && !Array.isArray(obj.stats)) src = obj.stats;
+  else if (obj.base_stats) src = obj.base_stats;
+  else if (Array.isArray(obj.stats)) {
+    src = {};
+    obj.stats.forEach(s => {
+      // PokeAPI style
+      if (s.stat && s.base_stat !== undefined) src[s.stat.name] = s.base_stat;
+      else if (s.name && s.base !== undefined) src[s.name] = s.base;
+    });
+  } else if (obj['baseStats']) src = obj['baseStats'];
+  if (!src) return null;
+
+  const mapping = {
+    'hp':'hp','attack':'attack','defense':'defense',
+    'special-attack':'special-attack','special_attack':'special-attack','spatk':'special-attack','sp_atk':'special-attack',
+    'special-defense':'special-defense','special_defense':'special-defense','spdef':'special-defense','sp_def':'special-defense',
+    'speed':'speed'
+  };
+  const normalized = { hp:0, attack:0, defense:0, 'special-attack':0, 'special-defense':0, speed:0 };
+  for (const [k,v] of Object.entries(src)) {
+    const key = k.toString().toLowerCase();
+    const canonical = mapping[key] || key;
+    if (canonical in normalized) normalized[canonical] = Number(v) || 0;
+  }
+  return normalized;
+}
+
+/* ---------- Calculation ---------- */
+    function calculateTeamStats() {
+      const team = [];
+      for (let i = 1; i <= 6; i++) {
+        const name = document.getElementById(`poke${i}`).value.toLowerCase();
+        if (name) {
+          const mon = pokedexData.find(p => p.name === name);
+          if (mon) {
+            team.push(mon);
+          }
+        }
+      }
+
+      let overall = 0;
+
+      // Sum all base stats for the team
+      team.forEach(mon => {
+        for (let stat in mon.stats) {
+          overall += mon.stats[stat];
+        }
+      });
+
+      // Display only the overall BST total
+      document.getElementById("results").textContent = overall;
+    }
+
+/* ---------- wiring ---------- */
+document.getElementById('calcBtn').addEventListener('click', calculateTeamStats);
+
+
+/* ---------- start ---------- */
+tryLoadJson();
+</script>
+</body>
 </html>
